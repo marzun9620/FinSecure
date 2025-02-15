@@ -1,15 +1,30 @@
-// middleware/fraudDetection.js
-const Transaction = require('../models/Transaction');
+const { spawn } = require("child_process");
+const path = require("path");
 
-// Detect fraud based on multiple transactions in a short time or unusual spending
-const fraudDetection = async (userId, amount) => {
-  const recentTransactions = await Transaction.find({ user_id: userId }).sort({ createdAt: -1 }).limit(5);
-  const avgTransaction = recentTransactions.reduce((acc, tx) => acc + tx.amount, 0) / recentTransactions.length;
+// ✅ Specify the correct Python path
+const pythonExecutable = "G:/Hello/mingw64/bin/python.exe"; // Change this if needed
 
-  if (amount > avgTransaction * 3) { // If the transaction is more than 3 times the average, flag it
-    return true;
-  }
-  return false;
+const mlFraudDetection = async (amount, transaction_frequency, transaction_type, ip_address) => {
+  return new Promise((resolve, reject) => {
+    const pythonProcess = spawn(pythonExecutable, [
+      path.join(__dirname, "../scripts/predict_fraud.py"),
+      amount.toString(),
+      transaction_frequency.toString(),
+      transaction_type,
+      ip_address
+    ]);
+
+    pythonProcess.stdout.on("data", (data) => {
+      const result = data.toString().trim();
+      console.log("🔍 ML Fraud Prediction:", result);
+      resolve(result === "1"); // Returns true if fraud
+    });
+
+    pythonProcess.stderr.on("data", (data) => {
+      console.error("❌ Python Error:", data.toString());
+      reject(data.toString());
+    });
+  });
 };
 
-module.exports = fraudDetection;
+module.exports = mlFraudDetection;
